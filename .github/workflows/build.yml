@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout (repo อาจว่างก็ได้)
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -21,14 +21,13 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Generate Android project (RecoverX)
+      # === สร้างโปรเจกต์ Android ทั้งชุดในไลฟ์รัน (repo จะว่างก็ได้) ===
+      - name: Generate RecoverX project
         shell: bash
         run: |
           set -e
-
           mkdir -p RecoverX/app/src/main/java/com/example/recoverx
-          mkdir -p RecoverX/app/src/main/res/layout
-          mkdir -p RecoverX/app/src/main/res/values
+          mkdir -p RecoverX/app/src/main/res/{layout,values}
 
           cat > RecoverX/settings.gradle.kts << 'EOF'
           rootProject.name = "RecoverX"
@@ -50,7 +49,6 @@ jobs:
           android {
               namespace = "com.example.recoverx"
               compileSdk = 34
-
               defaultConfig {
                   applicationId = "com.example.recoverx"
                   minSdk = 24
@@ -58,19 +56,15 @@ jobs:
                   versionCode = 1
                   versionName = "1.0"
               }
-
               buildTypes {
                   release {
                       isMinifyEnabled = false
                       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
                   }
               }
-
               buildFeatures { viewBinding = true }
-
               packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
           }
-
           dependencies {
               implementation("androidx.core:core-ktx:1.13.1")
               implementation("androidx.appcompat:appcompat:1.7.0")
@@ -81,24 +75,13 @@ jobs:
           EOF
 
           cat > RecoverX/app/src/main/AndroidManifest.xml << 'EOF'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-              package="com.example.recoverx">
-
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.recoverx">
               <uses-feature android:name="android.hardware.usb.host" android:required="false" />
-
-              <!-- สำหรับ Android 13+ -->
               <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
               <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
-              <!-- สำหรับ Android <= 12 -->
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
-
-              <application
-                  android:label="RecoverX"
-                  android:icon="@mipmap/ic_launcher"
-                  android:theme="@style/Theme.Material3.DayNight.NoActionBar">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true">
+              <application android:label="RecoverX" android:icon="@mipmap/ic_launcher" android:theme="@style/Theme.Material3.DayNight.NoActionBar">
+                  <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -110,12 +93,9 @@ jobs:
 
           cat > RecoverX/app/src/main/java/com/example/recoverx/MainActivity.kt << 'EOF'
           package com.example.recoverx
-
-          import android.app.Activity
           import android.content.Intent
           import android.net.Uri
           import android.os.Bundle
-          import android.provider.DocumentsContract
           import android.widget.Toast
           import androidx.activity.result.contract.ActivityResultContracts
           import androidx.appcompat.app.AppCompatActivity
@@ -124,55 +104,29 @@ jobs:
           class MainActivity : AppCompatActivity() {
               private lateinit var b: ActivityMainBinding
 
-              private val pickDir = registerForActivityResult(
-                  ActivityResultContracts.OpenDocumentTree()
-              ) { uri: Uri? ->
+              private val pickDir = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
                   if (uri != null) {
                       contentResolver.takePersistableUriPermission(
                           uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                       )
-                      Toast.makeText(this, "เลือกโฟลเดอร์แล้ว: $uri", Toast.LENGTH_LONG).show()
-                  } else {
-                      Toast.makeText(this, "ยกเลิก", Toast.LENGTH_SHORT).show()
-                  }
+                      Toast.makeText(this, "เลือกโฟลเดอร์: $uri", Toast.LENGTH_LONG).show()
+                  } else Toast.makeText(this, "ยกเลิก", Toast.LENGTH_SHORT).show()
               }
 
-              private val openFile = registerForActivityResult(
-                  ActivityResultContracts.OpenDocument()
-              ) { uri: Uri? ->
-                  if (uri != null) {
-                      Toast.makeText(this, "เปิดไฟล์: $uri", Toast.LENGTH_LONG).show()
-                  } else {
-                      Toast.makeText(this, "ยกเลิก", Toast.LENGTH_SHORT).show()
-                  }
+              private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+                  if (uri != null) Toast.makeText(this, "เปิดไฟล์: $uri", Toast.LENGTH_LONG).show()
+                  else Toast.makeText(this, "ยกเลิก", Toast.LENGTH_SHORT).show()
               }
 
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
                   b = ActivityMainBinding.inflate(layoutInflater)
                   setContentView(b.root)
-
-                  b.btnPickRecoveryTarget.setOnClickListener {
-                      // เลือกโฟลเดอร์ปลายทาง (SAF) เพื่อคัดลอกไฟล์กู้คืน
-                      pickDir.launch(null)
-                  }
-
-                  b.btnPickFile.setOnClickListener {
-                      // เลือกไฟล์รูป/วีดีโอ (อ่านอย่างปลอดภัยผ่าน SAF)
-                      openFile.launch(arrayOf("image/*", "video/*"))
-                  }
-
-                  b.btnQuickScan.setOnClickListener {
-                      Toast.makeText(this, "สแกนแบบปลอดภัย (เดโม)", Toast.LENGTH_LONG).show()
-                  }
-
-                  b.btnDeepScan.setOnClickListener {
-                      Toast.makeText(this, "สแกนเชิงลึก (เดโม)", Toast.LENGTH_LONG).show()
-                  }
-
-                  b.btnCopySafe.setOnClickListener {
-                      Toast.makeText(this, "คัดลอกแบบปลอดภัย (เดโม)", Toast.LENGTH_LONG).show()
-                  }
+                  b.btnPickRecoveryTarget.setOnClickListener { pickDir.launch(null) }
+                  b.btnPickFile.setOnClickListener { openFile.launch(arrayOf("image/*","video/*")) }
+                  b.btnQuickScan.setOnClickListener { Toast.makeText(this,"สแกนปลอดภัย (เดโม)",Toast.LENGTH_LONG).show() }
+                  b.btnDeepScan.setOnClickListener { Toast.makeText(this,"สแกนลึก (เดโม)",Toast.LENGTH_LONG).show() }
+                  b.btnCopySafe.setOnClickListener { Toast.makeText(this,"คัดลอกปลอดภัย (เดโม)",Toast.LENGTH_LONG).show() }
               }
           }
           EOF
@@ -180,66 +134,41 @@ jobs:
           cat > RecoverX/app/src/main/res/layout/activity_main.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:orientation="vertical"
-              android:padding="20dp"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent">
-
-              <Button
-                  android:id="@+id/btnPickRecoveryTarget"
-                  android:text="เลือกโฟลเดอร์ปลายทาง (SAF)"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"/>
-
-              <Button
-                  android:id="@+id/btnPickFile"
-                  android:text="เปิดไฟล์รูป/วีดีโอ (SAF)"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:layout_marginTop="12dp"/>
-
-              <Button
-                  android:id="@+id/btnQuickScan"
-                  android:text="สแกนแบบปลอดภัย"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:layout_marginTop="24dp"/>
-
-              <Button
-                  android:id="@+id/btnDeepScan"
-                  android:text="สแกนเชิงลึก"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:layout_marginTop="12dp"/>
-
-              <Button
-                  android:id="@+id/btnCopySafe"
-                  android:text="คัดลอกไฟล์แบบปลอดภัย"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:layout_marginTop="12dp"/>
+              android:orientation="vertical" android:padding="20dp"
+              android:layout_width="match_parent" android:layout_height="match_parent">
+              <Button android:id="@+id/btnPickRecoveryTarget" android:text="เลือกโฟลเดอร์ปลายทาง (SAF)"
+                  android:layout_width="match_parent" android:layout_height="wrap_content"/>
+              <Button android:id="@+id/btnPickFile" android:text="เปิดไฟล์รูป/วีดีโอ (SAF)"
+                  android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp"/>
+              <Button android:id="@+id/btnQuickScan" android:text="สแกนแบบปลอดภัย"
+                  android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp"/>
+              <Button android:id="@+id/btnDeepScan" android:text="สแกนเชิงลึก"
+                  android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp"/>
+              <Button android:id="@+id/btnCopySafe" android:text="คัดลอกไฟล์แบบปลอดภัย"
+                  android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp"/>
           </LinearLayout>
           EOF
 
           cat > RecoverX/app/src/main/res/values/strings.xml << 'EOF'
-          <resources>
-              <string name="app_name">RecoverX</string>
-          </resources>
+          <resources><string name="app_name">RecoverX</string></resources>
           EOF
 
           cat > RecoverX/app/proguard-rules.pro << 'EOF'
           # empty
           EOF
 
-      - name: Provision Gradle 8.7 and create wrapper
+      # === ติดตั้ง/สร้าง Gradle Wrapper แบบเสถียร + ตั้งสิทธิ์ ===
+      - name: Install Gradle 8.7 & create wrapper
         shell: bash
         run: |
+          set -e
           cd RecoverX
           curl -s https://get.sdkman.io | bash
           source "$HOME/.sdkman/bin/sdkman-init.sh"
           sdk install gradle 8.7
           gradle --version
           gradle wrapper --gradle-version 8.7
+          chmod +x ./gradlew
 
       - name: Accept Android licenses & install platforms
         shell: bash
@@ -247,7 +176,7 @@ jobs:
           yes | sdkmanager --licenses
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Build APK (release)
+      - name: Build APK
         shell: bash
         run: |
           cd RecoverX
@@ -257,4 +186,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: RecoverX-APK
-          path: RecoverX/app/build/outputs/apk/release/*.apk
+          path: |
+            **/build/outputs/apk/release/*.apk
+            **/build/outputs/apk/debug/*.apk
