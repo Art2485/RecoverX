@@ -22,16 +22,23 @@ jobs:
         uses: android-actions/setup-android@v3
 
       # === สร้างโปรเจกต์ Android ทั้งชุดในไลฟ์รัน (repo จะว่างก็ได้) ===
-      - name: Generate RecoverX project
-        shell: bash
-        run: |
-          set -e
-          mkdir -p RecoverX/app/src/main/java/com/example/recoverx
-          mkdir -p RecoverX/app/src/main/res/{layout,values}
+      - pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
 
-          cat > RecoverX/settings.gradle.kts << 'EOF'
-          rootProject.name = "RecoverX"
-          include(":app")
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "RecoverX"
+include(":app")
           EOF
 
           cat > RecoverX/build.gradle.kts << 'EOF'
